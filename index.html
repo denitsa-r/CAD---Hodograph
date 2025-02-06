@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bézier Curve and Hodograph with WebGL</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f0f0f0;
+      }
+      canvas {
+        border: 1px solid #000;
+        margin: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bezierCanvas" width="400" height="400"></canvas>
+    <canvas id="hodographCanvas" width="400" height="400"></canvas>
+
+    <script>
+      // Vertex shader for points and lines
+      const vertexShaderSource = `
+      attribute vec2 a_position;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        gl_PointSize = 10.0;
+      }
+    `;
+
+      // Fragment shader for points and lines
+      const fragmentShaderSource = `
+      precision mediump float;
+      uniform vec4 u_color;
+      void main() {
+        gl_FragColor = u_color;
+      }
+    `;
+
+      // Initialize WebGL context
+      function initWebGL(canvas) {
+        const gl = canvas.getContext("webgl");
+        if (!gl) {
+          console.error("WebGL not supported");
+          return null;
+        }
+        return gl;
+      }
+
+      // Compile shader
+      function compileShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error(
+            "Shader compilation failed:",
+            gl.getShaderInfoLog(shader)
+          );
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      // Create shader program
+      function createProgram(gl, vertexShader, fragmentShader) {
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          console.error(
+            "Program linking failed:",
+            gl.getProgramInfoLog(program)
+          );
+          return null;
+        }
+        return program;
+      }
+
+      // Initialize shaders and program
+      function initShaders(gl) {
+        const vertexShader = compileShader(
+          gl,
+          gl.VERTEX_SHADER,
+          vertexShaderSource
+        );
+        const fragmentShader = compileShader(
+          gl,
+          gl.FRAGMENT_SHADER,
+          fragmentShaderSource
+        );
+        const program = createProgram(gl, vertexShader, fragmentShader);
+        gl.useProgram(program);
+        return program;
+      }
+
+      // Draw points
+      function drawPoints(gl, program, points, color) {
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(points.flatMap((p) => [p.x, p.y])),
+          gl.STATIC_DRAW
+        );
+
+        const positionAttributeLocation = gl.getAttribLocation(
+          program,
+          "a_position"
+        );
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        gl.vertexAttribPointer(
+          positionAttributeLocation,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+
+        const colorUniformLocation = gl.getUniformLocation(program, "u_color");
+        gl.uniform4fv(colorUniformLocation, color);
+
+        gl.drawArrays(gl.POINTS, 0, points.length);
+      }
+
+      // Draw lines
+      function drawLines(gl, program, points, color) {
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(points.flatMap((p) => [p.x, p.y])),
+          gl.STATIC_DRAW
+        );
+
+        const positionAttributeLocation = gl.getAttribLocation(
+          program,
+          "a_position"
+        );
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        gl.vertexAttribPointer(
+          positionAttributeLocation,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+
+        const colorUniformLocation = gl.getUniformLocation(program, "u_color");
+        gl.uniform4fv(colorUniformLocation, color);
+
+        gl.drawArrays(gl.LINE_STRIP, 0, points.length);
+      }
+
+      // Calculate derivative (hodograph)
+      function calculateDerivative(controlPoints) {
+        const derivative = [];
+        for (let i = 0; i < controlPoints.length - 1; i++) {
+          const dx = controlPoints[i + 1].x - controlPoints[i].x;
+          const dy = controlPoints[i + 1].y - controlPoints[i].y;
+          derivative.push({ x: dx, y: dy });
+        }
+        return derivative;
+      }
+
+      // Calculate Bézier curve points using De Casteljau's algorithm
+      function calculateBezierCurve(controlPoints, steps = 100) {
+        const curvePoints = [];
+        for (let t = 0; t <= 1; t += 1 / steps) {
+          const point = deCasteljau(controlPoints, t);
+          curvePoints.push(point);
+        }
+        return curvePoints;
+      }
+
+      // De Casteljau's algorithm
+      function deCasteljau(points, t) {
+        let tempPoints = [...points];
+        while (tempPoints.length > 1) {
+          const newPoints = [];
+          for (let i = 0; i < tempPoints.length - 1; i++) {
+            const x = (1 - t) * tempPoints[i].x + t * tempPoints[i + 1].x;
+            const y = (1 - t) * tempPoints[i].y + t * tempPoints[i + 1].y;
+            newPoints.push({ x, y });
+          }
+          tempPoints = newPoints;
+        }
+        return tempPoints[0];
+      }
+
+      // Normalize coordinates to WebGL space (-1 to 1)
+      function normalizeCoordinates(canvas, x, y) {
+        return {
+          x: (x / canvas.width) * 2 - 1,
+          y: -((y / canvas.height) * 2 - 1),
+        };
+      }
+
+      // Main function
+      function main() {
+        const bezierCanvas = document.getElementById("bezierCanvas");
+        const hodographCanvas = document.getElementById("hodographCanvas");
+        const bezierGl = initWebGL(bezierCanvas);
+        const hodographGl = initWebGL(hodographCanvas);
+
+        if (!bezierGl || !hodographGl) return;
+
+        const bezierProgram = initShaders(bezierGl);
+        const hodographProgram = initShaders(hodographGl);
+
+        const points = [];
+        let selectedPointIndex = -1;
+
+        // Redraw everything
+        function redraw() {
+          // Clear canvases
+          bezierGl.clearColor(1.0, 1.0, 1.0, 1.0);
+          bezierGl.clear(bezierGl.COLOR_BUFFER_BIT);
+          hodographGl.clearColor(0.0, 0.0, 0.0, 1.0);
+          hodographGl.clear(hodographGl.COLOR_BUFFER_BIT);
+
+          // Draw Bézier curve and points
+          if (points.length > 1) {
+            const curvePoints = calculateBezierCurve(points);
+            drawLines(bezierGl, bezierProgram, curvePoints, [0, 0, 1, 1]); // Blue
+            drawLines(bezierGl, bezierProgram, points, [1, 0, 0, 1]); // Red lines between control points
+          }
+          drawPoints(bezierGl, bezierProgram, points, [0, 0, 0, 1]); // Black points
+
+          // Draw hodograph
+          if (points.length > 1) {
+            const derivativePoints = calculateDerivative(points);
+            const hodographCurve = calculateBezierCurve(derivativePoints);
+            drawLines(
+              hodographGl,
+              hodographProgram,
+              hodographCurve,
+              [0, 1, 0, 1]
+            ); // Green
+            drawLines(
+              hodographGl,
+              hodographProgram,
+              derivativePoints,
+              [1, 0.5, 0, 1]
+            ); // Orange lines between derivative points
+            drawPoints(
+              hodographGl,
+              hodographProgram,
+              derivativePoints,
+              [1, 0.5, 0, 1]
+            ); // Orange points
+          }
+        }
+
+        // Handle mouse events
+        bezierCanvas.addEventListener("mousedown", (e) => {
+          const rect = bezierCanvas.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const normalized = normalizeCoordinates(bezierCanvas, mouseX, mouseY);
+
+          // Check if a point is clicked
+          for (let i = 0; i < points.length; i++) {
+            const dx = points[i].x - normalized.x;
+            const dy = points[i].y - normalized.y;
+            if (Math.sqrt(dx * dx + dy * dy) < 0.05) {
+              selectedPointIndex = i;
+              break;
+            }
+          }
+
+          // Add a new point if no point is clicked
+          if (selectedPointIndex === -1) {
+            points.push(normalized);
+          }
+
+          redraw();
+        });
+
+        bezierCanvas.addEventListener("mousemove", (e) => {
+          if (selectedPointIndex !== -1) {
+            const rect = bezierCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const normalized = normalizeCoordinates(
+              bezierCanvas,
+              mouseX,
+              mouseY
+            );
+            points[selectedPointIndex] = normalized;
+            redraw();
+          }
+        });
+
+        bezierCanvas.addEventListener("mouseup", () => {
+          selectedPointIndex = -1;
+        });
+
+        bezierCanvas.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const rect = bezierCanvas.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const normalized = normalizeCoordinates(bezierCanvas, mouseX, mouseY);
+
+          // Remove the closest point
+          let closestIndex = -1;
+          let minDistance = Infinity;
+          for (let i = 0; i < points.length; i++) {
+            const dx = points[i].x - normalized.x;
+            const dy = points[i].y - normalized.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < minDistance && distance < 0.05) {
+              minDistance = distance;
+              closestIndex = i;
+            }
+          }
+          if (closestIndex !== -1) {
+            points.splice(closestIndex, 1);
+            redraw();
+          }
+        });
+      }
+
+      main();
+    </script>
+  </body>
+</html>
