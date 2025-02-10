@@ -4,31 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bézier Curve and Hodograph with WebGL</title>
-    <style>
-      body {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
-        background-color: #f0f0f0;
-      }
-      canvas {
-        border: 1px solid #000;
-        margin: 10px;
-      }
-    </style>
+    <link rel="stylesheet" href="main.css" />
   </head>
   <body>
-    <canvas id="bezierCanvas" width="400" height="400"></canvas>
-    <canvas id="hodographCanvas" width="400" height="400"></canvas>
+    <h1>Bézier Curve and Hodograph with WebGL</h1>
+    <div class="guide">
+      <h1>User Guide:</h1>
+      <p>Note: when using WebGL the Bezier Curve canvas interval is [-1,1]</p>
+      <ol>
+        <li>Add control points to the Bezier Curve's canvas</li>
+        <li>Watch on the second canvas how the hodograph appers</li>
+        <li>Check point coordinates under each canvas</li>
+        <li>
+          Adjust control points on the first canvas by clicking on them and
+          moving them around
+        </li>
+        <li>
+          If you cannot see the full image of the Hodograph adjust the scale
+          field
+        </li>
+      </ol>
+    </div>
+    <div class="flex">
+      <div class="controls">
+        <label for="scale">Scale:</label>
+        <input type="number" id="scale" value="1" min="0.1" step="0.1" />
+      </div>
+      <div class="canvases">
+        <div>
+          <h3>Bezier Curve's canvas:</h3>
+          <canvas id="bezierCanvas" width="600" height="600"></canvas>
+          <h3>Control Points Coordinates:</h3>
+          <ul id="controlPointsCoordinates"></ul>
+        </div>
+        <div>
+          <h3>Hodograph Curve's canvas:</h3>
+          <canvas id="hodographCanvas" width="600" height="600"></canvas>
+          <h3>Derivative Points Coordinates:</h3>
+          <ul id="derivativePointsCoordinates"></ul>
+        </div>
+      </div>
+      <div class="coordinates"></div>
+    </div>
 
     <script>
       // Vertex shader for points and lines
       const vertexShaderSource = `
       attribute vec2 a_position;
+      uniform float u_scale;
       void main() {
-        gl_Position = vec4(a_position, 0.0, 1.0);
+        gl_Position = vec4(a_position * u_scale, 0.0, 1.0);
         gl_PointSize = 10.0;
       }
     `;
@@ -102,7 +127,7 @@
       }
 
       // Draw points
-      function drawPoints(gl, program, points, color) {
+      function drawPoints(gl, program, points, color, scale) {
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(
@@ -127,12 +152,15 @@
 
         const colorUniformLocation = gl.getUniformLocation(program, "u_color");
         gl.uniform4fv(colorUniformLocation, color);
+
+        const scaleUniformLocation = gl.getUniformLocation(program, "u_scale");
+        gl.uniform1f(scaleUniformLocation, scale);
 
         gl.drawArrays(gl.POINTS, 0, points.length);
       }
 
       // Draw lines
-      function drawLines(gl, program, points, color) {
+      function drawLines(gl, program, points, color, scale) {
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(
@@ -157,19 +185,29 @@
 
         const colorUniformLocation = gl.getUniformLocation(program, "u_color");
         gl.uniform4fv(colorUniformLocation, color);
+
+        const scaleUniformLocation = gl.getUniformLocation(program, "u_scale");
+        gl.uniform1f(scaleUniformLocation, scale);
 
         gl.drawArrays(gl.LINE_STRIP, 0, points.length);
       }
 
       // Calculate derivative (hodograph)
       function calculateDerivative(controlPoints) {
-        const derivative = [];
-        for (let i = 0; i < controlPoints.length - 1; i++) {
-          const dx = controlPoints[i + 1].x - controlPoints[i].x;
-          const dy = controlPoints[i + 1].y - controlPoints[i].y;
-          derivative.push({ x: dx, y: dy });
+        const derivativePoints = [];
+        const n = controlPoints.length - 1; // Степен на кривата
+
+        for (let i = 0; i < n; i++) {
+          // Изчисляваме разликата между съседни точки и умножаваме по n
+          const dx = n * (controlPoints[i + 1].x - controlPoints[i].x);
+          const dy = n * (controlPoints[i + 1].y - controlPoints[i].y);
+          // Изчисляваме разликата между съседни точки и умножаваме по n
+          // const dx = controlPoints[i + 1].x - controlPoints[i].x;
+          // const dy = controlPoints[i + 1].y - controlPoints[i].y;
+          // derivativePoints.push({ x: dx, y: dy });
         }
-        return derivative;
+
+        return derivativePoints;
       }
 
       // Calculate Bézier curve points using De Casteljau's algorithm
@@ -205,10 +243,36 @@
         };
       }
 
+      // Update coordinates display
+      function updateCoordinatesDisplay(controlPoints, derivativePoints) {
+        const controlPointsList = document.getElementById(
+          "controlPointsCoordinates"
+        );
+        const derivativePointsList = document.getElementById(
+          "derivativePointsCoordinates"
+        );
+
+        controlPointsList.innerHTML = "";
+        derivativePointsList.innerHTML = "";
+
+        controlPoints.forEach((point) => {
+          const li = document.createElement("li");
+          li.textContent = `(${point.x.toFixed(2)}, ${point.y.toFixed(2)})`;
+          controlPointsList.appendChild(li);
+        });
+
+        derivativePoints.forEach((point) => {
+          const li = document.createElement("li");
+          li.textContent = `(${point.x.toFixed(2)}, ${point.y.toFixed(2)})`;
+          derivativePointsList.appendChild(li);
+        });
+      }
+
       // Main function
       function main() {
         const bezierCanvas = document.getElementById("bezierCanvas");
         const hodographCanvas = document.getElementById("hodographCanvas");
+        const scaleInput = document.getElementById("scale");
         const bezierGl = initWebGL(bezierCanvas);
         const hodographGl = initWebGL(hodographCanvas);
 
@@ -219,6 +283,7 @@
 
         const points = [];
         let selectedPointIndex = -1;
+        let scale = parseFloat(scaleInput.value);
 
         // Redraw everything
         function redraw() {
@@ -231,10 +296,16 @@
           // Draw Bézier curve and points
           if (points.length > 1) {
             const curvePoints = calculateBezierCurve(points);
-            drawLines(bezierGl, bezierProgram, curvePoints, [0, 0, 1, 1]); // Blue
-            drawLines(bezierGl, bezierProgram, points, [1, 0, 0, 1]); // Red lines between control points
+            drawLines(
+              bezierGl,
+              bezierProgram,
+              curvePoints,
+              [0, 0, 1, 1],
+              scale
+            ); // Blue
+            drawLines(bezierGl, bezierProgram, points, [1, 0, 0, 1], scale); // Red lines between control points
           }
-          drawPoints(bezierGl, bezierProgram, points, [0, 0, 0, 1]); // Black points
+          drawPoints(bezierGl, bezierProgram, points, [0, 0, 0, 1], scale); // Black points
 
           // Draw hodograph
           if (points.length > 1) {
@@ -244,20 +315,26 @@
               hodographGl,
               hodographProgram,
               hodographCurve,
-              [0, 1, 0, 1]
+              [0, 1, 0, 1],
+              scale
             ); // Green
             drawLines(
               hodographGl,
               hodographProgram,
               derivativePoints,
-              [1, 0.5, 0, 1]
+              [1, 0.5, 0, 1],
+              scale
             ); // Orange lines between derivative points
             drawPoints(
               hodographGl,
               hodographProgram,
               derivativePoints,
-              [1, 0.5, 0, 1]
+              [1, 0.5, 0, 1],
+              scale
             ); // Orange points
+
+            // Update coordinates display
+            updateCoordinatesDisplay(points, derivativePoints);
           }
         }
 
@@ -328,6 +405,12 @@
             points.splice(closestIndex, 1);
             redraw();
           }
+        });
+
+        // Handle scale change
+        scaleInput.addEventListener("input", () => {
+          scale = parseFloat(scaleInput.value);
+          redraw();
         });
       }
 
