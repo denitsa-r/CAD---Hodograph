@@ -27,24 +27,44 @@
     </div>
     <div class="flex">
       <div class="controls">
-        <label for="scale">Scale:</label>
+        <label for="scale">Scale Hodograph's canvas:</label>
         <input type="number" id="scale" value="1" min="0.1" step="0.1" />
       </div>
       <div class="canvases">
         <div>
           <h3>Bezier Curve's canvas:</h3>
+          <h4><i>(Control points interval is [-1,1])</i></h4>
           <canvas id="bezierCanvas" width="600" height="600"></canvas>
           <h3>Control Points Coordinates:</h3>
           <ul id="controlPointsCoordinates"></ul>
         </div>
         <div>
           <h3>Hodograph Curve's canvas:</h3>
+          <h4>
+            <i
+              >(default Control points interval is [-1,1],
+              <span class="red">!adjust using the scale!</span>)</i
+            >
+          </h4>
           <canvas id="hodographCanvas" width="600" height="600"></canvas>
           <h3>Derivative Points Coordinates:</h3>
           <ul id="derivativePointsCoordinates"></ul>
         </div>
       </div>
       <div class="coordinates"></div>
+      <div class="explanation">
+        <h1>How control points of the derivative are calulated?</h1>
+        <p>Using this formula:</p>
+        <img
+          src="https://wikimedia.org/api/rest_v1/media/math/render/svg/4a79736c89090b4a3ee83d5572d4631cac5f881e"
+          alt="formula of bezier curve's derivative"
+        />
+        <p>
+          That's why when calculating the derivative control points we use this
+          formula
+          <b>Q<span>i</span> = n⋅(P<span>i+1</span> - P<span>i</span> )</b>
+        </p>
+      </div>
     </div>
 
     <script>
@@ -204,7 +224,7 @@
           // Изчисляваме разликата между съседни точки и умножаваме по n
           // const dx = controlPoints[i + 1].x - controlPoints[i].x;
           // const dy = controlPoints[i + 1].y - controlPoints[i].y;
-          // derivativePoints.push({ x: dx, y: dy });
+          derivativePoints.push({ x: dx, y: dy });
         }
 
         return derivativePoints;
@@ -296,16 +316,10 @@
           // Draw Bézier curve and points
           if (points.length > 1) {
             const curvePoints = calculateBezierCurve(points);
-            drawLines(
-              bezierGl,
-              bezierProgram,
-              curvePoints,
-              [0, 0, 1, 1],
-              scale
-            ); // Blue
-            drawLines(bezierGl, bezierProgram, points, [1, 0, 0, 1], scale); // Red lines between control points
+            drawLines(bezierGl, bezierProgram, curvePoints, [0, 0, 1, 1], 1); // Blue
+            drawLines(bezierGl, bezierProgram, points, [1, 0, 0, 1], 1); // Red lines between control points
           }
-          drawPoints(bezierGl, bezierProgram, points, [0, 0, 0, 1], scale); // Black points
+          drawPoints(bezierGl, bezierProgram, points, [0, 0, 0, 1], 1); // Black points
 
           // Draw hodograph
           if (points.length > 1) {

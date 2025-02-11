@@ -23,3 +23,9 @@ canvas {
   display: flex;
   flex-direction: column;
 }
+.explanation span {
+  font-size: 0.75rem;
+}
+.red {
+  color: red;
+}
