@@ -24,6 +24,11 @@
           Adjust control points on the first canvas by clicking on them and
           moving them around
         </li>
+        <li>
+          Remove point/points from the Bezier Curve's canvas by clicking on them
+          with the right mouse button.
+        </li>
+        <li>Remove ALL points by clicking the red button.</li>
       </ol>
       <p>
         <i
@@ -52,6 +57,8 @@
         </div>
       </div>
       <div class="coordinates"></div>
+      <button id="clearButton" class="clear">Clear All Points</button>
+
       <div class="explanation">
         <h1>How control points of the derivative are calulated?</h1>
         <p>Using this formula:</p>
@@ -292,6 +299,14 @@
         const scaleInput = document.getElementById("scale");
         const bezierGl = initWebGL(bezierCanvas);
         const hodographGl = initWebGL(hodographCanvas);
+        const clearButton = document.getElementById("clearButton");
+
+        clearButton.addEventListener("click", () => {
+          points.length = 0;
+          document.getElementById("controlPointsCoordinates").innerHTML = "";
+          document.getElementById("derivativePointsCoordinates").innerHTML = "";
+          redraw();
+        });
 
         if (!bezierGl || !hodographGl) return;
 
