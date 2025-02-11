@@ -12,12 +12,16 @@ canvas {
 }
 .controls {
   margin: 10px;
+  display: none;
 }
 .coordinates {
   margin: 10px;
 }
 .canvases {
   display: flex;
+}
+.canvases h4 {
+  max-width: 600px;
 }
 .flex {
   display: flex;

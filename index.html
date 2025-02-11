@@ -10,7 +10,12 @@
     <h1>Bézier Curve and Hodograph with WebGL</h1>
     <div class="guide">
       <h1>User Guide:</h1>
-      <p>Note: when using WebGL the Bezier Curve canvas interval is [-1,1]</p>
+      <p>
+        <i
+          ><b>Note:</b> when using WebGL the Bezier Curve canvas interval is
+          [-1,1]</i
+        >
+      </p>
       <ol>
         <li>Add control points to the Bezier Curve's canvas</li>
         <li>Watch on the second canvas how the hodograph appers</li>
@@ -19,33 +24,28 @@
           Adjust control points on the first canvas by clicking on them and
           moving them around
         </li>
-        <li>
-          If you cannot see the full image of the Hodograph adjust the scale
-          field
-        </li>
       </ol>
+      <p>
+        <i
+          ><b>Note:</b> here the Hodograph's canvas is automatically changing
+          its interval, so we can see the full hodograph's image, as we add
+          other control points to the Bezier Curve</i
+        >
+      </p>
     </div>
     <div class="flex">
       <div class="controls">
-        <label for="scale">Scale Hodograph's canvas:</label>
         <input type="number" id="scale" value="1" min="0.1" step="0.1" />
       </div>
       <div class="canvases">
         <div>
           <h3>Bezier Curve's canvas:</h3>
-          <h4><i>(Control points interval is [-1,1])</i></h4>
           <canvas id="bezierCanvas" width="600" height="600"></canvas>
           <h3>Control Points Coordinates:</h3>
           <ul id="controlPointsCoordinates"></ul>
         </div>
         <div>
           <h3>Hodograph Curve's canvas:</h3>
-          <h4>
-            <i
-              >(default Control points interval is [-1,1],
-              <span class="red">!adjust using the scale!</span>)</i
-            >
-          </h4>
           <canvas id="hodographCanvas" width="600" height="600"></canvas>
           <h3>Derivative Points Coordinates:</h3>
           <ul id="derivativePointsCoordinates"></ul>
@@ -221,9 +221,6 @@
           // Изчисляваме разликата между съседни точки и умножаваме по n
           const dx = n * (controlPoints[i + 1].x - controlPoints[i].x);
           const dy = n * (controlPoints[i + 1].y - controlPoints[i].y);
-          // Изчисляваме разликата между съседни точки и умножаваме по n
-          // const dx = controlPoints[i + 1].x - controlPoints[i].x;
-          // const dy = controlPoints[i + 1].y - controlPoints[i].y;
           derivativePoints.push({ x: dx, y: dy });
         }
 
@@ -305,6 +302,24 @@
         let selectedPointIndex = -1;
         let scale = parseFloat(scaleInput.value);
 
+        function computeAutoScale(points) {
+          if (points.length === 0) return 1;
+          let minX = points[0].x,
+            maxX = points[0].x;
+          let minY = points[0].y,
+            maxY = points[0].y;
+          points.forEach((p) => {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+          });
+          const rangeX = Math.max(Math.abs(minX), Math.abs(maxX));
+          const rangeY = Math.max(Math.abs(minY), Math.abs(maxY));
+          const maxRange = Math.max(rangeX, rangeY);
+          return maxRange === 0 ? 1 : 1 / maxRange;
+        }
+
         // Redraw everything
         function redraw() {
           // Clear canvases
@@ -324,30 +339,33 @@
           // Draw hodograph
           if (points.length > 1) {
             const derivativePoints = calculateDerivative(points);
+            // Изчисляване на автоматичния мащаб за hodograph
+            const autoScale = computeAutoScale(derivativePoints);
+
             const hodographCurve = calculateBezierCurve(derivativePoints);
             drawLines(
               hodographGl,
               hodographProgram,
               hodographCurve,
               [0, 1, 0, 1],
-              scale
-            ); // Green
+              autoScale
+            ); // Green curve
             drawLines(
               hodographGl,
               hodographProgram,
               derivativePoints,
               [1, 0.5, 0, 1],
-              scale
-            ); // Orange lines between derivative points
+              autoScale
+            ); // Orange lines
             drawPoints(
               hodographGl,
               hodographProgram,
               derivativePoints,
               [1, 0.5, 0, 1],
-              scale
+              autoScale
             ); // Orange points
 
-            // Update coordinates display
+            // Update coordinates display remains the same
             updateCoordinatesDisplay(points, derivativePoints);
           }
         }
